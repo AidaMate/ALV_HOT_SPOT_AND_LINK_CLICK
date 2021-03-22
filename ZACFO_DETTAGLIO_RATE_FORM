@@ -1,0 +1,619 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZACFO_DETTAGLIO_RATE_FORM
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  SELECT_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM SELECT_DATA.
+
+  TYPES: BEGIN OF TY_RATA,
+           SEGNO TYPE VORZN,
+           EU    TYPE XEGLD.
+          INCLUDE STRUCTURE ZACFO_RATA.
+  TYPES: END OF TY_RATA.
+
+  DATA: LV_SEGNO TYPE VORZN,
+        LV_XEGLD TYPE XEGLD.
+  DATA: LV_VKORG TYPE VKORG,
+        LV_KTGRM TYPE KTGRM,
+        LV_KTOKK TYPE KTOKK.                                "em28012021
+
+*ins-em17122020
+*  SELECT * FROM zacfo_rata JOIN lfb1 ON zacfo_rata~lifnr = lfb1~lifnr
+  SELECT  ZACFO_RATA~ERDAT LFB1~BUKRS LFB1~LIFNR ZACFO_RATA~TIPOPR
+          ZACFO_RATA~RAGSOCIALE ZACFO_RATA~KNUMA ZACFO_RATA~IDPREMIO
+          ZACFO_RATA~IDRATA  ZACFO_RATA~IMPCAL  ZACFO_RATA~IMPFOR
+          ZACFO_RATA~IMPLIQ  ZACFO_RATA~DATINRT  ZACFO_RATA~DATFINRT
+          ZACFO_RATA~STATRT  ZACFO_RATA~TIPOPRDESC  ZACFO_RATA~CAUPR
+          ZACFO_RATA~CAUPRDESC  ZACFO_RATA~CAURT  ZACFO_RATA~CAURTDESC
+          ZACFO_RATA~TPLIQ   LFB1~LNRZE  ZACFO_RATA~DATLQRT
+          ZACFO_RATA~EKGRP   ZACFO_RATA~EKGRP_DESC  ZACFO_RATA~STORNORT
+          ZACFO_RATA~IDRATA_STORN
+       FROM ZACFO_RATA JOIN LFB1 ON ZACFO_RATA~LIFNR = LFB1~LIFNR
+*end-em17122020
+  INTO CORRESPONDING FIELDS OF TABLE GT_OUTPUT
+  WHERE LFB1~BUKRS IN S_BUKRS
+    AND KNUMA IN S_KNUMA
+    AND IDPREMIO IN S_IDPREM
+    AND IDRATA IN S_IDRATA
+    AND STATRT IN S_STATRT
+    AND TIPOPR IN S_TIPOPR
+    AND TPLIQ IN S_TPLIQ
+    AND ZACFO_RATA~LIFNR IN S_LIFNR
+    AND EKGRP IN S_EKGRP
+    AND IDRATA_STORN IN S_STORN
+    AND DATINRT IN S_DATIN
+    AND ZACFO_RATA~ERDAT IN S_ERDAT
+    AND LFB1~LNRZE IN S_LNRZE
+    AND DELETED = ''.
+
+
+  LOOP AT GT_OUTPUT INTO GS_OUTPUT.
+
+*ins-em28012021
+    CLEAR : LV_KTOKK,
+            LV_VKORG,
+            LV_KTGRM.
+*end-em28012021
+
+    IF GS_OUTPUT-IMPFOR IS NOT INITIAL.
+      IF GS_OUTPUT-IMPFOR GE 0.
+        GS_OUTPUT-SEGNO = '+'.
+      ELSE.
+        GS_OUTPUT-SEGNO = '-'.
+      ENDIF.
+    ELSE.
+      IF GS_OUTPUT-IMPCAL GE 0.
+        GS_OUTPUT-SEGNO = '+'.
+      ELSE.
+        GS_OUTPUT-SEGNO = '-'.
+      ENDIF.
+    ENDIF.
+*ins-em18012021
+*   SELECT SINGLE ktokk FROM lfa1 INTO @DATA(lv_ktokk)
+*     WHERE lifnr EQ @gs_output-lifnr.
+    SELECT SINGLE KTOKK FROM LFA1 INTO  LV_KTOKK
+      WHERE LIFNR EQ GS_OUTPUT-LIFNR.
+*end-em18012021
+    IF LV_KTOKK NE 'ZMEX'.
+      GS_OUTPUT-XEGLD = 'X'.
+    ENDIF.
+
+
+    SELECT SINGLE TIPO_DOC MATNR FROM ZACFO_ASLIQ INTO ( GS_OUTPUT-TIPO_DOC, GS_OUTPUT-MATNR )
+      WHERE BUKRS = GS_OUTPUT-BUKRS
+        AND TIPOPR = GS_OUTPUT-TIPOPR
+        AND CAUPR = GS_OUTPUT-CAUPR
+        AND CAURT = GS_OUTPUT-CAURT
+        AND STORNORT = GS_OUTPUT-STORNORT
+        AND SEGNO = GS_OUTPUT-SEGNO
+        AND XEGLD = GS_OUTPUT-XEGLD
+        AND TIPO_DOC  IN S_TPDOC                            "em17122020
+        AND DA_ESERCIZIO LE GS_OUTPUT-DATINRT(4) AND A_ESERCIZIO GE GS_OUTPUT-DATFINRT(4).
+*ins-em28012021
+    IF SY-SUBRC NE 0.
+      DELETE GT_OUTPUT.
+      CONTINUE.
+    ENDIF.
+*end-em28012021
+
+    SELECT SINGLE NAME1 FROM LFA1 INTO GS_OUTPUT-TEXT_LFB1_LNRZE
+      WHERE LIFNR = GS_OUTPUT-LNRZE.
+    IF GS_OUTPUT-TEXT_LFB1_LNRZE IS INITIAL.
+      SELECT SINGLE NAME1 FROM LFA1 INTO GS_OUTPUT-TEXT_LFB1_LNRZE
+        WHERE LIFNR = GS_OUTPUT-LNRZE.
+    ENDIF.
+
+    SELECT SINGLE VKORG KTGRM FROM MVKE INTO (LV_VKORG, LV_KTGRM)
+      WHERE MATNR = GS_OUTPUT-MATNR
+        AND VKORG = GS_OUTPUT-BUKRS
+        AND VTWEG = 'C1'.
+
+    SELECT SINGLE SAKN1 FROM C003 INTO GS_OUTPUT-NR_CONTO
+      WHERE KAPPL = 'V'
+        AND KSCHL = 'Z001'
+        AND KTOPL = 'ZPDC'
+        AND VKORG = LV_VKORG
+        AND KTGRM = LV_KTGRM
+        AND KVSL1 = 'ERL'.
+
+    SELECT SINGLE TXT50 FROM SKAT INTO GS_OUTPUT-DESCR_CONTO
+      WHERE SPRAS = SY-LANGU
+        AND SAKNR = GS_OUTPUT-NR_CONTO
+        AND KTOPL = 'ZPDC'.
+
+    IF GS_OUTPUT-IMPFOR IS NOT INITIAL.
+*      gs_output-delta = gs_output-impfor - gs_output-impliq.
+      GS_OUTPUT-DELTA = GS_OUTPUT-IMPLIQ - GS_OUTPUT-IMPFOR.
+    ELSE.
+*      gs_output-delta = gs_output-impcal - gs_output-impliq.
+      GS_OUTPUT-DELTA = GS_OUTPUT-IMPLIQ - GS_OUTPUT-IMPCAL.
+    ENDIF.
+
+    GS_OUTPUT-HOTSPOT = ICON_OVERVIEW.
+
+    MODIFY GT_OUTPUT FROM GS_OUTPUT INDEX SY-TABIX.
+
+  ENDLOOP.
+
+
+*  SELECT * FROM zacfo_rata AS r JOIN lfb1 ON r~lifnr = lfb1~lifnr
+*    JOIN zacfo_asliq AS l
+*      ON r~tipopr = l~tipopr
+*      AND r~caupr = l~caupr
+*      AND r~caurt = l~caupr
+*      AND r~stornort = l~caupr
+*    INTO CORRESPONDING FIELDS OF TABLE gt_output
+*    WHERE lfb1~bukrs IN s_bukrs
+*      AND l~bukrs IN s_bukrs
+*      AND l~segno = lv_segno
+*      AND xegld = lv_xegld
+*      AND r~zyear GE l~da_esercizio
+*      AND r~zyear LE l~a_esercizio
+*      AND r~deleted = ''.
+
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM DISPLAY_DATA.
+
+  DATA: LR_ALV TYPE REF TO CL_SALV_TABLE.
+  DATA: LO_COLUMN TYPE REF TO CL_SALV_COLUMN_TABLE.
+  DATA: LO_COLUMNS TYPE REF TO CL_SALV_COLUMNS.
+  DATA: LO_DISPLAY TYPE REF TO CL_SALV_DISPLAY_SETTINGS.
+  DATA: LO_FUNCTIONS TYPE REF TO CL_SALV_FUNCTIONS_LIST.
+  DATA: LO_SORTS TYPE REF TO CL_SALV_SORTS.
+  DATA: LO_AGG TYPE REF TO CL_SALV_AGGREGATIONS.
+  DATA: LO_LAYOUT TYPE REF TO CL_SALV_LAYOUT,
+        LS_KEY    TYPE SALV_S_LAYOUT_KEY.
+*data: lr_columns type ref to cl_salv_columns,
+*        lr_column  type ref to cl_salv_column_table.
+
+  TRY.
+      CALL METHOD CL_SALV_TABLE=>FACTORY
+        IMPORTING
+          R_SALV_TABLE = LR_ALV
+        CHANGING
+          T_TABLE      = GT_OUTPUT.
+    CATCH CX_SALV_MSG.
+  ENDTRY.
+
+  TRY.
+      LO_COLUMNS = LR_ALV->GET_COLUMNS( ).
+    CATCH CX_SALV_NOT_FOUND.
+  ENDTRY.
+
+  LO_COLUMNS->SET_OPTIMIZE( ).
+
+
+  LO_FUNCTIONS = LR_ALV->GET_FUNCTIONS( ).
+* Abbiamo tutte le funzioni nel pf_status con set_all
+  LO_FUNCTIONS->SET_ALL( ABAP_TRUE ).
+
+  LO_DISPLAY = LR_ALV->GET_DISPLAY_SETTINGS( ).
+* Visualizzazione alv con 2 colori
+  LO_DISPLAY->SET_STRIPED_PATTERN( ABAP_TRUE ).
+*  LO_DISPLAY->
+
+* Rendo invisibile
+  LO_COLUMN ?= LO_COLUMNS->GET_COLUMN( 'XEGLD' ).
+  LO_COLUMN->SET_VISIBLE( ABAP_FALSE ).
+  LO_COLUMN ?= LO_COLUMNS->GET_COLUMN( 'SEGNO' ).
+  LO_COLUMN->SET_VISIBLE( ABAP_FALSE ).
+
+* Modifico etichetta colonna
+  LO_COLUMN ?= LO_COLUMNS->GET_COLUMN( 'RAGSOCIALE' ).
+  LO_COLUMN->SET_SHORT_TEXT( 'Rag. soc.' ).
+  LO_COLUMN->SET_MEDIUM_TEXT( 'Ragione sociale' ).
+  LO_COLUMN->SET_LONG_TEXT( 'Ragione sociale' ).
+  LO_COLUMN ?= LO_COLUMNS->GET_COLUMN( 'DELTA' ).
+  LO_COLUMN->SET_SHORT_TEXT( 'Delta' ).
+  LO_COLUMN->SET_MEDIUM_TEXT( 'Delta' ).
+  LO_COLUMN->SET_LONG_TEXT( 'Delta' ).
+  LO_COLUMN ?= LO_COLUMNS->GET_COLUMN( 'TEXT_LFB1_LNRZE' ).
+  LO_COLUMN->SET_SHORT_TEXT( 'Rag. soc.' ).
+  LO_COLUMN->SET_MEDIUM_TEXT( 'Ragione sociale' ).
+  LO_COLUMN->SET_LONG_TEXT( 'Ragione sociale' ).
+  LO_COLUMN ?= LO_COLUMNS->GET_COLUMN( 'IDRATA_STORN' ).
+  LO_COLUMN->SET_SHORT_TEXT( 'Id storno' ).
+  LO_COLUMN->SET_MEDIUM_TEXT( 'Id rata stornata' ).
+  LO_COLUMN->SET_LONG_TEXT( 'Id rata stornata' ).
+
+
+***************************************************************
+*
+*  lo_column ?= lo_columns->get_column( 'HOTSPOT' ).
+*  lo_column->set_cell_type( if_salv_c_cell_type=>hotspot ).
+*  lo_column->set_icon( if_salv_c_bool_sap=>true ).
+*  lo_column->set_long_text( 'HOTSPOT' ).
+  TRY.
+      LO_COLUMN ?= LO_COLUMNS->GET_COLUMN( 'HOTSPOT' ).
+      LO_COLUMN->SET_CELL_TYPE( IF_SALV_C_CELL_TYPE=>HOTSPOT ).
+      LO_COLUMN->SET_ICON( IF_SALV_C_BOOL_SAP=>TRUE ).
+      LO_COLUMN->SET_LONG_TEXT( TEXT-003 ).
+    CATCH CX_SALV_NOT_FOUND.                            "#EC NO_HANDLER
+  ENDTRY.
+*data: lr_columns type ref to cl_salv_columns,
+*        lr_column  type ref to cl_salv_column_table.
+*
+*  lr_columns = LR_ALV->get_columns( ).
+*  lr_columns->set_optimize( ).
+*
+**... §4 set hotspot column
+*
+*  try.
+*      lr_column ?= lr_columns->get_column( 'HOTSPOT' ).
+*      lr_column->set_cell_type( if_salv_c_cell_type=>hotspot ).
+*      lr_column->set_icon( if_salv_c_bool_sap=>true ).
+*      lr_column->set_long_text( text-004 ).
+*    catch cx_salv_not_found.                            "#EC NO_HANDLER
+*  endtry.
+
+
+**************************************************************
+
+* Get layout object
+  LO_LAYOUT = LR_ALV->GET_LAYOUT( ).
+* Set Layout save restriction
+* Set Layout Key. Unique key identifies the Differenet ALVs
+* Recupera i layout associati al programma
+  LS_KEY-REPORT = SY-REPID.
+  LO_LAYOUT->SET_KEY( LS_KEY ).
+* Remove Save layout the restriction.
+  LO_LAYOUT->SET_SAVE_RESTRICTION( IF_SALV_C_LAYOUT=>RESTRICT_NONE ).
+
+* Set initial Layout
+  LO_LAYOUT->SET_INITIAL_LAYOUT( P_LAYOUT ).
+
+*DC-AM:ZFATT33 DRILL DOWN -  STRY0013064
+  DATA: LR_EVENTS TYPE REF TO CL_SALV_EVENTS_TABLE.
+
+  LR_EVENTS = LR_ALV->GET_EVENT( ).
+
+  CREATE OBJECT GR_EVENTS.
+
+
+
+*... §6.1 register to the event USER_COMMAND
+
+  SET HANDLER GR_EVENTS->ON_USER_COMMAND FOR LR_EVENTS.
+
+*... §6.3 register to the event LINK_CLICK
+
+  SET HANDLER GR_EVENTS->ON_LINK_CLICK FOR LR_EVENTS.
+*DC-AM:ZFATT33 DRILL DOWN -  STRY0013064
+
+
+  LR_ALV->DISPLAY( ).
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  SET_XEGLD
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM SET_EU.
+
+  LOOP AT SCREEN.
+    IF SCREEN-NAME = 'S_XEGLD-LOW'.
+      SCREEN-INPUT = 0.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  F4_LAYOUTS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_IF_SALV_C_LAYOUT=>RESTRICT_NON  text
+*      <--P_P_LAYOUT  text
+*----------------------------------------------------------------------*
+FORM F4_LAYOUTS CHANGING C_LAYOUT TYPE DISVARIANT-VARIANT.
+
+  DATA: LS_LAYOUT TYPE SALV_S_LAYOUT_INFO,
+        LS_KEY    TYPE SALV_S_LAYOUT_KEY.
+
+  LS_KEY-REPORT = SY-REPID.
+
+  LS_LAYOUT = CL_SALV_LAYOUT_SERVICE=>F4_LAYOUTS( S_KEY = LS_KEY ).
+
+  C_LAYOUT = LS_LAYOUT-LAYOUT.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  DRILL_DOWN
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  DRILL_DOWN
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM DRILL_DOWN .
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SHOW_DETAIL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_ROW  text
+*      -->P_COLUMN  text
+*----------------------------------------------------------------------*
+FORM SHOW_DETAIL USING I_ROW TYPE I
+      I_COLUMN TYPE LVC_FNAME.
+
+  IF I_COLUMN = 'HOTSPOT'.
+      PERFORM GET_DETAILS_DATA USING I_ROW.
+  ELSEIF I_COLUMN = 'AUBEL'.
+     PERFORM SHOW_VA03 USING I_ROW.
+  ELSEIF I_COLUMN = 'BELNR'.
+     PERFORM SHOW_FB03 USING I_ROW.
+*  elseif I_column in RNG_TBL.
+*     perform choose_transaction.
+  ENDIF.
+
+
+
+
+ENDFORM. " show_detail
+*&---------------------------------------------------------------------*
+*&      Form  GET_DETAILS_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM GET_DETAILS_DATA USING I_ROW TYPE I .
+ DATA: LS_OUTPUT LIKE LINE OF GT_OUTPUT.
+
+
+ READ TABLE GT_OUTPUT INTO LS_OUTPUT INDEX I_ROW.
+  IF SY-SUBRC EQ 0.
+  SELECT * FROM ZACFO_ABBINARATA
+  INTO TABLE TB_ZACFO
+    WHERE KNUMA    = LS_OUTPUT-KNUMA
+      AND IDPREMIO = LS_OUTPUT-IDPREMIO
+      AND IDRATA   = LS_OUTPUT-IDRATA.
+  ENDIF.
+
+  IF TB_ZACFO IS NOT INITIAL.
+  CL_SALV_TABLE=>FACTORY( IMPORTING R_SALV_TABLE = GO_SALV
+                          CHANGING T_TABLE = TB_ZACFO ).
+
+
+  GO_SALV->SET_SCREEN_STATUS(
+  PFSTATUS      =  'SALV_STANDARD'
+  REPORT        =  SY-REPID
+  SET_FUNCTIONS = GO_SALV->C_FUNCTIONS_ALL ).
+
+   DATA: LR_COLUMNS TYPE REF TO CL_SALV_COLUMNS,
+         LR_COLUMN  TYPE REF TO CL_SALV_COLUMN_TABLE.
+
+  LR_COLUMNS = GO_SALV->GET_COLUMNS( ).
+  LR_COLUMNS->SET_OPTIMIZE( ).
+
+
+
+*... §4 set hotspot columns
+
+
+*  TRY.
+*      LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'KNUMA' ).
+*      LR_COLUMN->SET_CELL_TYPE( IF_SALV_C_CELL_TYPE=>HOTSPOT ).
+*      LR_COLUMN->SET_ICON( IF_SALV_C_BOOL_SAP=>TRUE ).
+**      lr_column->set_long_text( text-004 ).
+*    CATCH CX_SALV_NOT_FOUND.                            "#EC NO_HANDLER
+*  ENDTRY.
+*
+*      TRY.
+*      LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'IDPREMIO' ).
+*      LR_COLUMN->SET_CELL_TYPE( IF_SALV_C_CELL_TYPE=>HOTSPOT ).
+*      LR_COLUMN->SET_ICON( IF_SALV_C_BOOL_SAP=>TRUE ).
+**      lr_column->set_long_text( text-004 ).
+*    CATCH CX_SALV_NOT_FOUND.                            "#EC NO_HANDLER
+*  ENDTRY.
+*
+*      TRY.
+*      LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'IDRATA' ).
+*      LR_COLUMN->SET_CELL_TYPE( IF_SALV_C_CELL_TYPE=>HOTSPOT ).
+*      LR_COLUMN->SET_ICON( IF_SALV_C_BOOL_SAP=>TRUE ).
+**      lr_column->set_long_text( text-004 ).
+*    CATCH CX_SALV_NOT_FOUND.                            "#EC NO_HANDLER
+*  ENDTRY.
+*
+*      TRY.
+*      LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'TS_CREAZ_RATA' ).
+*      LR_COLUMN->SET_CELL_TYPE( IF_SALV_C_CELL_TYPE=>HOTSPOT ).
+*      LR_COLUMN->SET_ICON( IF_SALV_C_BOOL_SAP=>TRUE ).
+**      lr_column->set_long_text( text-004 ).
+*    CATCH CX_SALV_NOT_FOUND.                            "#EC NO_HANDLER
+*  ENDTRY.
+
+  TRY.
+      LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'BELNR' ).
+      LR_COLUMN->SET_CELL_TYPE( IF_SALV_C_CELL_TYPE=>HOTSPOT ).
+      LR_COLUMN->SET_ICON( IF_SALV_C_BOOL_SAP=>TRUE ).
+*      lr_column->set_long_text( text-004 ).
+    CATCH CX_SALV_NOT_FOUND.                            "#EC NO_HANDLER
+  ENDTRY.
+
+    TRY.
+      LR_COLUMN ?= LR_COLUMNS->GET_COLUMN( 'AUBEL' ).
+      LR_COLUMN->SET_CELL_TYPE( IF_SALV_C_CELL_TYPE=>HOTSPOT ).
+      LR_COLUMN->SET_ICON( IF_SALV_C_BOOL_SAP=>TRUE ).
+*      lr_column->set_long_text( text-004 ).
+    CATCH CX_SALV_NOT_FOUND.                            "#EC NO_HANDLER
+  ENDTRY.
+
+
+*  PERFORM SET_HOTSPOT_VALUES.
+
+
+
+
+  DATA: LR_EVENTS TYPE REF TO CL_SALV_EVENTS_TABLE.
+
+  LR_EVENTS = GO_SALV->GET_EVENT( ).
+  CREATE OBJECT GR_EVENTS2.
+*... §6.1 register to the event USER_COMMAND
+
+  SET HANDLER GR_EVENTS2->ON_USER_COMMAND FOR LR_EVENTS.
+
+*... §6.3 register to the event LINK_CLICK
+
+  SET HANDLER GR_EVENTS2->ON_LINK_CLICK FOR LR_EVENTS.
+
+  GO_SALV->DISPLAY( ).
+  ELSE.
+    MESSAGE TEXT-004 TYPE 'I'.
+  ENDIF.
+
+
+
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SHOW_VA03
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM SHOW_VA03 USING I_ROW TYPE I .
+  READ TABLE TB_ZACFO INTO WA_ZACFO INDEX I_ROW.
+  IF SY-SUBRC EQ 0.
+     SET PARAMETER ID 'AUN' FIELD WA_ZACFO-AUBEL.
+     CALL TRANSACTION 'VA03' AND SKIP FIRST SCREEN.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SHOW_FB03
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_I_ROW  text
+*----------------------------------------------------------------------*
+FORM SHOW_FB03  USING I_ROW TYPE I.
+*  • the company # BKPF-BUKRS = E073 (fixed value)  --> BUK
+*• exercise # BKPF-GJAHR = ZACFO_ABBINARATA- GJAHR  --> GJR --> ZYEAR
+*• document # BKPF-BELNR = ZACFO_ABBINARATA- BELNR
+
+  READ TABLE TB_ZACFO INTO WA_ZACFO INDEX I_ROW.
+  IF SY-SUBRC EQ 0.
+     SET PARAMETER ID 'BLN' FIELD WA_ZACFO-BELNR.
+     SET PARAMETER ID 'BUK' FIELD 'E073'.
+     SET PARAMETER ID 'GJR' FIELD WA_ZACFO-ZYEAR.
+     CALL TRANSACTION 'FB03' AND SKIP FIRST SCREEN.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SET_HOTSPOT_VALUES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM SET_HOTSPOT_VALUES.
+  WA_RNG-SIGN = 'I'.
+  WA_RNG-OPTION = 'EQ'.
+  WA_RNG-LOW = 'AUBEL'.
+  APPEND WA_RNG TO RNG_TBL.
+
+  WA_RNG-SIGN = 'I'.
+  WA_RNG-OPTION = 'EQ'.
+  WA_RNG-LOW = 'BELNR'.
+  APPEND WA_RNG TO RNG_TBL.
+
+  WA_RNG-SIGN = 'I'.
+  WA_RNG-OPTION = 'EQ'.
+  WA_RNG-LOW = 'ZYEAR'.
+  APPEND WA_RNG TO RNG_TBL.
+
+  WA_RNG-SIGN = 'I'.
+  WA_RNG-OPTION = 'EQ'.
+  WA_RNG-LOW = 'IDPREMIO'.
+  APPEND WA_RNG TO RNG_TBL.
+
+  WA_RNG-SIGN = 'I'.
+  WA_RNG-OPTION = 'EQ'.
+  WA_RNG-LOW = 'IDRATA'.
+  APPEND WA_RNG TO RNG_TBL.
+
+
+  WA_RNG-SIGN = 'I'.
+  WA_RNG-OPTION = 'EQ'.
+  WA_RNG-LOW = 'TS_CREAZ_RATA'.
+  APPEND WA_RNG TO RNG_TBL.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CHOOSE_TRANSACTION
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM CHOOSE_TRANSACTION .
+*   CALL FUNCTION 'POPUP_TO_DECIDE_LIST'
+*     EXPORTING
+**      CURSORLINE               = 1
+**      MARK_FLAG                = ' '
+**      MARK_MAX                 = 1
+**      START_COL                = 0
+**      START_ROW                = 0
+*       TEXTLINE1                =
+**      TEXTLINE2                = ' '
+**      TEXTLINE3                = ' '
+*       TITEL                    =
+**      DISPLAY_ONLY             = ' '
+**    IMPORTING
+**      ANSWER                   =
+*     TABLES
+*       T_SPOPLI                 =
+**    EXCEPTIONS
+**      NOT_ENOUGH_ANSWERS       = 1
+**      TOO_MUCH_ANSWERS         = 2
+**      TOO_MUCH_MARKS           = 3
+**      OTHERS                   = 4
+*             .
+*   IF SY-SUBRC <> 0.
+** Implement suitable error handling here
+*   ENDIF.
+
+ENDFORM.

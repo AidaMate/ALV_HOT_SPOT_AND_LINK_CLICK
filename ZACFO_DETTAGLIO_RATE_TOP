@@ -1,0 +1,168 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZACFO_DETTAGLIO_RATE_TOP
+*&---------------------------------------------------------------------*
+
+TABLES: zacfo_rata,
+        lfb1,
+        zacfo_asliq.
+
+
+constants: gc_true type sap_bool value 'X'.
+class lcl_event_manager definition deferred.
+data: gt_data type table of ZACFO_ABBINARATA,
+      gw_data type ZACFO_ABBINARATA,
+      go_salv type ref to cl_salv_table,
+      go_event_man type ref to lcl_event_manager.
+
+* Note - the user interface MAIN_MENU on this program was copied from
+* SAPLSLVC_FULLSCREEN / STANDARD_FULLSCREEN
+*-----------------------------------------------------------------------
+* CLASS lcl_event_manager DEFINITION
+*-----------------------------------------------------------------------
+class lcl_event_manager definition.
+
+  public section.
+    methods: "constructor importing r_object type ref to cl_salv_table,
+             on_user_command for event added_function of cl_salv_events
+               importing e_salv_function,
+             on_double_click for event double_click of cl_salv_events_table
+               importing row column,
+             on_link_click for event link_click of cl_salv_events_table
+               importing row column.
+*  private section.
+*    data: go_salv type ref to cl_salv_table.
+
+endclass.                    "lcl_event_manager DEFINITION
+
+
+TYPES: BEGIN OF ty_output,
+         hotspot         TYPE icon_d,    "DC-AM
+         erdat           TYPE erdat,
+         bukrs           TYPE bukrs,
+         lifnr           TYPE lifnr,
+         tipopr          TYPE zacfo_tipopr,
+         ragsociale      TYPE name1_gp,
+         knuma           TYPE knuma,
+         idpremio        TYPE zacfo_idpremio,
+         idrata          TYPE zacfo_idrata,
+         impcal          TYPE zacfo_impcal,
+         impfor          TYPE zacfo_impfor,
+         impliq          TYPE zacfo_impliq,
+         delta           TYPE zga_imp_rata,     "%z_0004  importo rata - liquidato
+         datinrt         TYPE zacfo_datinrt,
+         datfinrt        TYPE zacfo_datfinrt,
+         statrt          TYPE zacfo_statrt,
+         tipoprdesc      TYPE zacfo_desctipopr,
+         caupr           TYPE zacfo_caupr,
+         cauprdesc       TYPE zacfo_desccaupr,
+         caurt           TYPE zacfo_caurt,
+         caurtdesc       TYPE zacfo_desccaurt,
+         tpliq           TYPE zacfo_tpliq,
+         lnrze           TYPE lnrze,            "Numero conto centrale LFB1
+         text_lfb1_lnrze TYPE name1_gp,
+         datlqrt         TYPE zacfo_dtlqrt,
+         ekgrp           TYPE ekgrp,
+         ekgrp_desc      TYPE eknam,
+         tipo_doc        TYPE zga_tipo_doc,
+         nr_conto        TYPE saknr,            "sq02
+         descr_conto     TYPE txt50_skat,       "sq02
+         stornort        TYPE zacfo_stornort,   "tipo_rata TYPE zacfo_t,
+         idrata_storn    TYPE zacfo_idrata,
+         xegld           TYPE xegld,            "flag CE
+         aedat           TYPE aedat,
+         segno           TYPE vorzn,
+         matnr           TYPE matnr,            "Materiale zacfo_asliq
+*         progr_id_rata              TYPE zga_progr_id_rata,
+*         descr_premio               TYPE zga_descr_premio,
+*         forn_cics                  TYPE zga_forn_cics,
+*         delta_cong                 TYPE zga_imp_rata,     "sq02 dipende dal tipo conguaglio che non abbiamo
+*         waers003                   TYPE waers,
+*         cod_conguaglio             TYPE zga_cod_cong,
+*         text_zgaft_rata_stato_rata TYPE val_text,
+*         tipo_err                   TYPE zga_tipo_err,
+*         text_zgaft_rata_tipo_err   TYPE val_text,
+*         vbeln                      TYPE vbeln_va,         "doc vendita
+*         nr_record                  TYPE syst_dbcnt,       "sq02 abbinano più rate allo stesso idrata noi no
+*         totale_acquisti            TYPE zga_imp_imponib,  "%z_0007
+*         waers004                   TYPE waers,
+*         imp_premio                 TYPE zga_imp_premio,   "non ho il premio nella rata
+*         waers005                   TYPE waers,
+*         acconto                    TYPE zga_imp_rata,     "%z_0010 premio - rata
+*         waers006                   TYPE waers,
+*         commento                   TYPE zga_comm1, "sq02
+*         percent_sap(5)             TYPE p DECIMALS 2,      "%z_0008  ( premio / imp_imponib(cos'è?) ) * 100 imponibile dovrebbe essere fatturato fornitore
+*         tipo_imp                   TYPE zga_tipo_imp,
+*         text_zgaft_rata_tipo_imp   TYPE val_text,
+*         dt_canc_rata               TYPE zga_dt_canc_rata,
+*         nota                       TYPE znota_255,
+*         utente_liq                 TYPE ad_namtext,         "sq02
+       END OF ty_output.
+
+DATA: gt_output TYPE TABLE OF ty_output,
+      gs_output TYPE ty_output.
+
+*DC-AM:ZFATT33 DRILL DOWN -  STRY0013064
+  DATA: TB_ZACFO TYPE STANDARD TABLE OF ZACFO_ABBINARATA,
+        wa_zacfo like LINE OF TB_ZACFO.
+  data: gr_events type ref to lcl_event_manager.
+  data: gr_events2 type ref to lcl_event_manager.
+  TYPES:rng_typ TYPE RANGE OF LVC_FNAME.
+  DATA: rng_tbl TYPE rng_typ,
+       wa_rng TYPE LINE OF rng_typ.
+*  DC-AM:ZFATT33 DRILL DOWN -  STRY0013064
+
+SELECTION-SCREEN BEGIN OF BLOCK qsel WITH FRAME TITLE text-001.
+SELECT-OPTIONS s_bukrs FOR zacfo_asliq-bukrs MEMORY ID buk DEFAULT 'E073'.
+SELECT-OPTIONS s_tpdoc FOR zacfo_asliq-tipo_doc.
+SELECT-OPTIONS s_statrt FOR zacfo_rata-statrt
+                 MATCHCODE OBJECT zstatorata."em17122020
+SELECT-OPTIONS s_erdat FOR zacfo_rata-erdat.
+SELECT-OPTIONS s_knuma FOR zacfo_rata-knuma.
+SELECT-OPTIONS s_idprem FOR zacfo_rata-idpremio.
+SELECT-OPTIONS s_idrata FOR zacfo_rata-idrata.
+*SELECT-OPTIONS s_vbeln FOR zacfo_asliq-vbeln.
+SELECT-OPTIONS s_tipopr FOR zacfo_rata-tipopr
+                  MATCHCODE OBJECT ztipopremio."em17122020
+SELECT-OPTIONS s_tpliq FOR zacfo_rata-tpliq.
+SELECT-OPTIONS s_lifnr FOR zacfo_rata-lifnr.
+SELECT-OPTIONS s_lnrze FOR lfb1-lnrze.
+SELECT-OPTIONS s_ekgrp FOR zacfo_rata-ekgrp
+                  MATCHCODE OBJECT zcompratori."em17122020
+SELECT-OPTIONS s_storn FOR zacfo_rata-idrata_storn.
+SELECT-OPTIONS s_datin FOR zacfo_rata-datinrt.
+*SELECT-OPTIONS sp$00017 FOR zacfo_rata-dt_canc_rata.
+*SELECT-OPTIONS s_xegld FOR zacfo_asliq-xegld NO INTERVALS NO-EXTENSION DEFAULT ''.
+SELECTION-SCREEN END OF BLOCK qsel.
+
+SELECTION-SCREEN BEGIN OF BLOCK stdsel WITH FRAME TITLE text-002.
+PARAMETERS p_layout TYPE slis_vari MODIF ID lay.
+SELECTION-SCREEN END OF BLOCK stdsel.
+
+
+
+
+*
+*start-of-selection.
+*
+*  select * from mara into table gt_data up to 30 rows.
+*
+*  cl_salv_table=>factory( importing r_salv_table = go_salv
+*                          changing t_table = gt_data ).
+*
+*  data: lrf_selections type ref to CL_SALV_SELECTIONS,
+*        lrf_columns_table type ref to CL_SALV_COLUMNS_TABLE,
+*        lrf_column_table type ref to CL_SALV_COLUMN_TABLE.
+** Set the selection mode: allow multiple lines to be selected
+*  lrf_selections = go_salv->get_selections( ).
+*  lrf_selections->set_selection_mode( 2 ).
+** Set a field to clicklink field:
+*  lrf_columns_table = go_salv->get_columns( ).
+*  lrf_columns_table->set_optimize( abap_true ). "Always a good idea
+*  lrf_column_table ?= lrf_columns_table->get_column( 'MATNR' ).
+*  lrf_column_table->set_cell_type( if_salv_c_cell_type=>hotspot ).
+*
+*  CREATE OBJECT go_event_man
+*    EXPORTING
+*      r_object = go_salv.
+*
+*  go_salv->display( ).

@@ -1,0 +1,57 @@
+*&---------------------------------------------------------------------*
+*& Report  ZACFO_DETTAGLIO_RATE
+*&
+*&---------------------------------------------------------------------*
+*&rif.em17122020 inseriti matchcode,verifica tipodoc,
+*&    corretta estrazione dati da join che riportava dtcreazione da lfb1
+*&
+*&---------------------------------------------------------------------*
+REPORT zacfo_dettaglio_rate.
+
+INCLUDE zacfo_dettaglio_rate_top.
+INCLUDE zacfo_dettaglio_rate_form.
+
+
+*AT SELECTION-SCREEN OUTPUT.
+*  PERFORM set_eu.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_layout.
+
+  PERFORM f4_layouts CHANGING p_layout.
+
+START-OF-SELECTION.
+
+ PERFORM select_data.
+ PERFORM display_data.
+
+ class lcl_event_manager implementation.
+*  method constructor.
+*    data: lo_events type ref to cl_salv_events_table.
+*
+*    go_salv = r_object.
+*    lo_events = go_salv->get_event( ).
+*    set handler on_user_command for lo_events.
+*    set handler on_double_click for lo_events.
+*    set handler on_link_click for lo_events.
+*  endmethod.
+  method on_user_command.
+    data: lt_rows type salv_t_row,
+          lv_row type int4,
+          lo_selections type ref to cl_salv_selections.
+
+*    case e_salv_function.
+
+*    endcase.
+  endmethod.                    "on_user_command
+  method on_double_click.
+*    read table gt_data index row into gw_data.
+*    gw_data-matnr = '*doubleclicked*'.
+*    modify gt_data index row from gw_data.
+*    go_salv->refresh( ).
+  endmethod.                    "on_double_click
+  method on_link_click.
+
+    perform show_detail using row column.
+
+  endmethod.                    "on_link_click
+endclass.
